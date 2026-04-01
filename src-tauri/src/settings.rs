@@ -24,6 +24,10 @@ pub struct CustomContext {
 pub struct Settings {
     /// Soniox API key
     pub soniox_api_key: String,
+    /// Google Cloud Translate API key
+    pub google_translate_api_key: String,
+    /// DeepL API key
+    pub deepl_api_key: String,
     /// Source language: "auto" or ISO 639-1 code
     pub source_language: String,
     /// Target language: ISO 639-1 code
@@ -70,6 +74,8 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             soniox_api_key: String::new(),
+            google_translate_api_key: String::new(),
+            deepl_api_key: String::new(),
             source_language: "auto".to_string(),
             target_language: "vi".to_string(),
             audio_source: "system".to_string(),

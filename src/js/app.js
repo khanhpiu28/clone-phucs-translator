@@ -8,6 +8,8 @@ import { TranscriptUI } from './ui.js';
 import { sonioxClient } from './soniox.js';
 import { elevenLabsTTS } from './elevenlabs-tts.js';
 import { googleTTS } from './google-tts.js';
+import { googleTranslateClient } from './google-translate.js';
+import { deepLTranslateClient } from './deepl-translate.js';
 import { edgeTTSRust } from './edge-tts.js';
 import { audioPlayer } from './audio-player.js';
 import { updater } from './updater.js';
@@ -20,7 +22,7 @@ class App {
         this.isRunning = false;
         this.isStarting = false; // Guard against re-entry
         this.currentSource = 'system'; // 'system' | 'microphone' | 'both'
-        this.translationMode = 'soniox'; // 'soniox' | 'local'
+        this.translationMode = 'soniox'; // 'soniox' | 'soniox_google' | 'soniox_deepl' | 'local'
         this.transcriptUI = null;
         this.appWindow = getCurrentWindow();
         this.localPipelineChannel = null;
@@ -29,6 +31,8 @@ class App {
         this.ttsEnabled = false;  // TTS runtime toggle
         this.isPinned = true;     // Always-on-top state
         this.isCompact = false;   // Compact mode (hide control bar)
+        this.googleTranslateQueue = Promise.resolve();
+        this.deepLTranslateQueue = Promise.resolve();
     }
 
     async init() {
@@ -249,6 +253,16 @@ class App {
             const input = document.getElementById('input-api-key');
             input.type = input.type === 'password' ? 'text' : 'password';
         });
+        document.getElementById('btn-toggle-google-translate-key')?.addEventListener('click', () => {
+            const input = document.getElementById('input-google-translate-key');
+            if (!input) return;
+            input.type = input.type === 'password' ? 'text' : 'password';
+        });
+        document.getElementById('btn-toggle-deepl-key')?.addEventListener('click', () => {
+            const input = document.getElementById('input-deepl-key');
+            if (!input) return;
+            input.type = input.type === 'password' ? 'text' : 'password';
+        });
 
         // Translation mode toggle
         document.getElementById('select-translation-mode').addEventListener('change', (e) => {
@@ -365,9 +379,15 @@ class App {
         // Wire Soniox callbacks
         sonioxClient.onOriginal = (text, speaker, language) => {
             this.transcriptUI.addOriginal(text, speaker, language);
+            if (this.translationMode === 'soniox_google') {
+                this._enqueueGoogleTranslation(text);
+            } else if (this.translationMode === 'soniox_deepl') {
+                this._enqueueDeepLTranslation(text);
+            }
         };
 
         sonioxClient.onTranslation = (text) => {
+            if (this.translationMode === 'soniox_google' || this.translationMode === 'soniox_deepl') return;
             this.transcriptUI.addTranslation(text);
             this._speakIfEnabled(text);
         };
@@ -507,6 +527,10 @@ class App {
         const s = settingsManager.get();
 
         document.getElementById('input-api-key').value = s.soniox_api_key || '';
+        const googleTranslateKeyInput = document.getElementById('input-google-translate-key');
+        if (googleTranslateKeyInput) googleTranslateKeyInput.value = s.google_translate_api_key || '';
+        const deepLKeyInput = document.getElementById('input-deepl-key');
+        if (deepLKeyInput) deepLKeyInput.value = s.deepl_api_key || '';
         document.getElementById('select-source-lang').value = s.source_language || 'auto';
         document.getElementById('select-target-lang').value = s.target_language || 'vi';
         document.getElementById('select-translation-mode').value = s.translation_mode || 'soniox';
@@ -610,6 +634,8 @@ class App {
     async _saveSettingsFromForm() {
         const settings = {
             soniox_api_key: document.getElementById('input-api-key').value.trim(),
+            google_translate_api_key: document.getElementById('input-google-translate-key')?.value.trim() || '',
+            deepl_api_key: document.getElementById('input-deepl-key')?.value.trim() || '',
             source_language: document.getElementById('select-source-lang').value,
             target_language: document.getElementById('select-target-lang').value,
             translation_mode: document.getElementById('select-translation-mode').value,
@@ -911,18 +937,29 @@ class App {
 
     _updateModeUI(mode) {
         const isSoniox = mode === 'soniox';
+        const isSonioxGoogle = mode === 'soniox_google';
+        const isSonioxDeepL = mode === 'soniox_deepl';
+        const isLocal = mode === 'local';
 
         // Toggle hints
         const hintSoniox = document.getElementById('hint-mode-soniox');
+        const hintSonioxGoogle = document.getElementById('hint-mode-soniox-google');
+        const hintSonioxDeepL = document.getElementById('hint-mode-soniox-deepl');
         const hintLocal = document.getElementById('hint-mode-local');
         if (hintSoniox) hintSoniox.style.display = isSoniox ? '' : 'none';
-        if (hintLocal) hintLocal.style.display = !isSoniox ? '' : 'none';
+        if (hintSonioxGoogle) hintSonioxGoogle.style.display = isSonioxGoogle ? '' : 'none';
+        if (hintSonioxDeepL) hintSonioxDeepL.style.display = isSonioxDeepL ? '' : 'none';
+        if (hintLocal) hintLocal.style.display = isLocal ? '' : 'none';
 
-        // Toggle Soniox-only sections
+        // Toggle provider-specific sections
         const sectionApiKey = document.getElementById('section-api-key');
+        const sectionGoogleTranslateKey = document.getElementById('section-google-translate-key');
+        const sectionDeepLKey = document.getElementById('section-deepl-key');
         const sectionContext = document.getElementById('section-soniox-context');
-        if (sectionApiKey) sectionApiKey.style.display = isSoniox ? '' : 'none';
-        if (sectionContext) sectionContext.style.display = isSoniox ? '' : 'none';
+        if (sectionApiKey) sectionApiKey.style.display = (isSoniox || isSonioxGoogle || isSonioxDeepL) ? '' : 'none';
+        if (sectionGoogleTranslateKey) sectionGoogleTranslateKey.style.display = isSonioxGoogle ? '' : 'none';
+        if (sectionDeepLKey) sectionDeepLKey.style.display = isSonioxDeepL ? '' : 'none';
+        if (sectionContext) sectionContext.style.display = (isSoniox || isSonioxGoogle || isSonioxDeepL) ? '' : 'none';
     }
 
     // ─── Start/Stop ────────────────────────────────────────
@@ -932,9 +969,29 @@ class App {
         this.translationMode = settings.translation_mode || 'soniox';
         console.log('[App] start() called, translation_mode:', this.translationMode, 'settings:', JSON.stringify(settings));
 
-        // Check Soniox API key only for cloud mode
-        if (this.translationMode === 'soniox' && !settings.soniox_api_key) {
+        // Check Soniox API key for cloud modes
+        if ((this.translationMode === 'soniox' || this.translationMode === 'soniox_google' || this.translationMode === 'soniox_deepl') && !settings.soniox_api_key) {
             this._showToast('Soniox API key is required. Add it in Settings.', 'error');
+            this._showView('settings');
+            return;
+        }
+        if (this.translationMode === 'soniox_google' && !settings.google_translate_api_key) {
+            this._showToast('Google Translate API key is required for this mode.', 'error');
+            this._showView('settings');
+            return;
+        }
+        if (this.translationMode === 'soniox_deepl' && !settings.deepl_api_key) {
+            this._showToast('DeepL API key is required for this mode.', 'error');
+            this._showView('settings');
+            return;
+        }
+        if (this.translationMode === 'soniox_google' && (settings.translation_type || 'one_way') !== 'one_way') {
+            this._showToast('Soniox + Google mode currently supports one-way translation only.', 'error');
+            this._showView('settings');
+            return;
+        }
+        if (this.translationMode === 'soniox_deepl' && (settings.translation_type || 'one_way') !== 'one_way') {
+            this._showToast('Soniox + DeepL mode currently supports one-way translation only.', 'error');
             this._showView('settings');
             return;
         }
@@ -976,10 +1033,19 @@ class App {
         // Connect to Soniox
         console.log('[App] Connecting to Soniox...');
         this._updateStatus('connecting');
+        const useExternalTranslator = this.translationMode === 'soniox_google' || this.translationMode === 'soniox_deepl';
+        this.googleTranslateQueue = Promise.resolve();
+        this.deepLTranslateQueue = Promise.resolve();
+        googleTranslateClient.configure({
+            apiKey: settings.google_translate_api_key || '',
+        });
+        deepLTranslateClient.configure({
+            apiKey: settings.deepl_api_key || '',
+        });
         sonioxClient.connect({
             apiKey: settings.soniox_api_key,
             sourceLanguage: settings.source_language,
-            targetLanguage: settings.target_language,
+            targetLanguage: useExternalTranslator ? null : settings.target_language,
             customContext: settings.custom_context,
             translationType: settings.translation_type || 'one_way',
             languageA: settings.language_a,
@@ -1308,6 +1374,7 @@ class App {
         // Stop TTS
         elevenLabsTTS.disconnect();
         edgeTTSRust.disconnect();
+        googleTTS.disconnect();
 
         audioPlayer.stop();
 
@@ -1345,7 +1412,11 @@ class App {
         const targetLang = document.getElementById('select-target-lang')?.value || 'vi';
 
         const content = this.transcriptUI.getFormattedContent({
-            model: this.translationMode === 'soniox' ? 'Soniox Cloud API' : 'Local MLX Whisper',
+            model: this.translationMode === 'local'
+                ? 'Local MLX Whisper'
+                : (this.translationMode === 'soniox_google'
+                    ? 'Soniox + Google Cloud Translate API'
+                    : (this.translationMode === 'soniox_deepl' ? 'Soniox + DeepL API' : 'Soniox Cloud API')),
             sourceLang,
             targetLang,
             duration,
@@ -1362,6 +1433,50 @@ class App {
             console.error('Failed to save transcript:', err);
             this._showToast('Failed to save transcript', 'error');
         }
+    }
+
+    _enqueueGoogleTranslation(text) {
+        if (!text || !text.trim()) return;
+
+        const settings = settingsManager.get();
+        const payload = {
+            sourceLanguage: settings.source_language || 'auto',
+            targetLanguage: settings.target_language || 'vi',
+        };
+
+        this.googleTranslateQueue = this.googleTranslateQueue
+            .then(async () => {
+                const translated = await googleTranslateClient.translateText(text, payload);
+                if (!translated || !translated.trim()) return;
+                this.transcriptUI.addTranslation(translated);
+                this._speakIfEnabled(translated);
+            })
+            .catch((err) => {
+                console.error('[Google Translate]', err);
+                this._showToast(`Google Translate error: ${err.message || err}`, 'error');
+            });
+    }
+
+    _enqueueDeepLTranslation(text) {
+        if (!text || !text.trim()) return;
+
+        const settings = settingsManager.get();
+        const payload = {
+            sourceLanguage: settings.source_language || 'auto',
+            targetLanguage: settings.target_language || 'vi',
+        };
+
+        this.deepLTranslateQueue = this.deepLTranslateQueue
+            .then(async () => {
+                const translated = await deepLTranslateClient.translateText(text, payload);
+                if (!translated || !translated.trim()) return;
+                this.transcriptUI.addTranslation(translated);
+                this._speakIfEnabled(translated);
+            })
+            .catch((err) => {
+                console.error('[DeepL Translate]', err);
+                this._showToast(`DeepL Translate error: ${err.message || err}`, 'error');
+            });
     }
 
     // ─── Status ────────────────────────────────────────────
