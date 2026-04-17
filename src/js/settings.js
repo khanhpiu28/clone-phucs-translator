@@ -27,6 +27,7 @@ const DEFAULT_SETTINGS = {
   edge_tts_voice: 'vi-VN-HoaiMyNeural',
   edge_tts_speed: 50,
   tts_auto_read: true,
+  transparent_subtitle_mode: false,
 };
 
 class SettingsManager {

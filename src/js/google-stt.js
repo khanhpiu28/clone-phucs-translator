@@ -47,8 +47,6 @@ export class GoogleSttClient {
                 encoding: 'LINEAR16',
                 sampleRateHertz: 16000,
                 languageCode,
-                // Faster "short" utterances.
-                model: 'short',
             },
             audio: { content: contentBase64 },
         };

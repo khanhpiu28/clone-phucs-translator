@@ -48,6 +48,7 @@ pub fn run() {
             commands::audio::start_capture,
             commands::audio::stop_capture,
             commands::audio::check_permissions,
+            commands::audio::get_audio_debug_info,
             commands::transcript::save_transcript,
             commands::transcript::open_transcript_dir,
             commands::local_pipeline::start_local_pipeline,

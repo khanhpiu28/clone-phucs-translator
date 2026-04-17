@@ -17,6 +17,7 @@ export class TranscriptUI {
         this.maxChars = 1200;
         this.fontSize = 16;
         this.viewMode = 'single'; // 'single' or 'dual'
+        this.latestOnlyMode = false;
 
         // Segments: each has { original, translation, status, speaker, language, confidence }
         this.segments = [];
@@ -31,7 +32,7 @@ export class TranscriptUI {
     /**
      * Update display settings
      */
-    configure({ maxLines, showOriginal, fontSize, fontColor, viewMode }) {
+    configure({ maxLines, showOriginal, fontSize, fontColor, viewMode, latestOnlyMode }) {
         if (maxLines !== undefined) this.maxChars = maxLines * 160;
         if (fontSize !== undefined) {
             this.fontSize = fontSize;
@@ -47,6 +48,10 @@ export class TranscriptUI {
             if (overlay) {
                 overlay.classList.toggle('dual-view', viewMode === 'dual');
             }
+            this._render();
+        }
+        if (latestOnlyMode !== undefined) {
+            this.latestOnlyMode = !!latestOnlyMode;
             this._render();
         }
     }
@@ -295,6 +300,11 @@ export class TranscriptUI {
     }
 
     _renderSingle() {
+        if (this.latestOnlyMode) {
+            this._renderSingleLatestOnly();
+            return;
+        }
+
         let html = '';
         let lastRenderedSpeaker = null;
         let lastRenderedLang = null;
@@ -328,6 +338,31 @@ export class TranscriptUI {
             if (this.provisionalLanguage && this.provisionalLanguage !== lastRenderedLang) {
                 html += `<span class="lang-badge">${this._langEmoji(this.provisionalLanguage)}</span> `;
             }
+            html += `<div class="seg-block"><div class="seg-provisional">${this._esc(this.provisionalText)}</div></div>`;
+        }
+
+        this.contentEl.innerHTML = html;
+        this._smartScroll(this.container.parentElement || this.container);
+    }
+
+    _renderSingleLatestOnly() {
+        let html = '';
+        const latestTranslated = [...this.segments].reverse().find(seg => seg.status === 'translated' && seg.translation);
+
+        if (latestTranslated) {
+            if (latestTranslated.speaker) {
+                html += `<span class="speaker-label">Speaker ${latestTranslated.speaker}:</span> `;
+            }
+            if (latestTranslated.language) {
+                html += `<span class="lang-badge">${this._langEmoji(latestTranslated.language)}</span> `;
+            }
+            const confidenceClass = (latestTranslated.confidence !== null && latestTranslated.confidence < 0.7)
+                ? ' low-confidence'
+                : '';
+            html += `<div class="seg-block latest-only"><div class="seg-translated${confidenceClass}">${this._esc(latestTranslated.translation)}</div></div>`;
+        }
+
+        if (this.provisionalText) {
             html += `<div class="seg-block"><div class="seg-provisional">${this._esc(this.provisionalText)}</div></div>`;
         }
 

@@ -33,12 +33,15 @@ class App {
         this.ttsEnabled = false;  // TTS runtime toggle
         this.isPinned = true;     // Always-on-top state
         this.isCompact = false;   // Compact mode (hide control bar)
+        this.transparentSubtitleMode = false;
         this.googleTranslateQueue = Promise.resolve();
         this.deepLTranslateQueue = Promise.resolve();
         this.googleSttQueue = Promise.resolve();
         this.googleSttAudioBuffer = [];
         this.googleSttSilenceTimer = null;
         this.googleSttSegmentTimer = null;
+        this.lastWindowFocusAt = 0;
+        this.windowFocusTapThresholdMs = 550;
     }
 
     async init() {
@@ -60,6 +63,7 @@ class App {
 
         // Bind keyboard shortcuts
         this._bindKeyboardShortcuts();
+        this._bindWindowFocusRecovery();
 
         // Subscribe to settings changes
         settingsManager.onChange((settings) => this._applySettings(settings));
@@ -159,6 +163,9 @@ class App {
         // View mode toggle (dual panel)
         document.getElementById('btn-view-mode').addEventListener('click', () => {
             this._toggleViewMode();
+        });
+        document.getElementById('btn-transparent-mode')?.addEventListener('click', () => {
+            this._toggleTransparentSubtitleMode();
         });
 
         // Font size quick controls
@@ -316,6 +323,9 @@ class App {
 
         document.getElementById('range-max-lines').addEventListener('input', (e) => {
             document.getElementById('max-lines-value').textContent = e.target.value;
+        });
+        document.getElementById('check-transparent-subtitle')?.addEventListener('change', (e) => {
+            this._setTransparentSubtitleMode(e.target.checked, { persist: false });
         });
 
         document.getElementById('range-endpoint-delay')?.addEventListener('input', (e) => {
@@ -603,6 +613,7 @@ class App {
         document.getElementById('max-lines-value').textContent = s.max_lines || 5;
 
         document.getElementById('check-show-original').checked = s.show_original !== false;
+        document.getElementById('check-transparent-subtitle').checked = !!s.transparent_subtitle_mode;
 
         // Custom context (rich format)
         const ctx = s.custom_context;
@@ -681,6 +692,7 @@ class App {
             font_size: parseInt(document.getElementById('range-font-size').value),
             max_lines: parseInt(document.getElementById('range-max-lines').value),
             show_original: document.getElementById('check-show-original').checked,
+            transparent_subtitle_mode: document.getElementById('check-transparent-subtitle')?.checked || false,
             custom_context: null,
         };
 
@@ -753,6 +765,8 @@ class App {
                 fontSize: settings.font_size || 16,
             });
         }
+
+        this._setTransparentSubtitleMode(!!settings.transparent_subtitle_mode, { persist: false });
 
         // Update current source button states
         this.currentSource = settings.audio_source || 'system';
@@ -1242,15 +1256,30 @@ class App {
             }
 
             const srcLangCode = googleSttClient.buildLanguageCode(settings.source_language);
-            const text = await googleSttClient.recognizePcm16kLinear16(merged, { languageCode: srcLangCode });
-            if (!text || !text.trim()) return;
+            let text = '';
+            try {
+                text = await googleSttClient.recognizePcm16kLinear16(merged, { languageCode: srcLangCode });
+            } catch (err) {
+                this._showToast(`STT error: ${err.message || err}`, 'error');
+                return;
+            }
+
+            if (!text || !text.trim()) {
+                return;
+            }
 
             this.transcriptUI.addOriginal(text, null, settings.source_language === 'auto' ? null : settings.source_language);
 
-            const translated = await googleTranslateClient.translateText(text, {
-                sourceLanguage: settings.source_language || 'auto',
-                targetLanguage: settings.target_language || 'vi',
-            });
+            let translated = '';
+            try {
+                translated = await googleTranslateClient.translateText(text, {
+                    sourceLanguage: settings.source_language || 'auto',
+                    targetLanguage: settings.target_language || 'vi',
+                });
+            } catch (err) {
+                this._showToast(`Translate error: ${err.message || err}`, 'error');
+                return;
+            }
 
             if (translated && translated.trim()) {
                 this.transcriptUI.addTranslation(translated);
@@ -1290,6 +1319,7 @@ class App {
             });
 
             console.log('[App] Google STT capture started');
+            this._updateStatus('connected');
         } catch (err) {
             console.error('[App] Google STT mode failed:', err);
             this._showToast(`Google STT error: ${err}`, 'error');
@@ -1878,6 +1908,72 @@ class App {
         if (btn) btn.classList.toggle('active', newMode === 'dual');
     }
 
+    async _toggleTransparentSubtitleMode() {
+        const next = !this.transparentSubtitleMode;
+        this._setTransparentSubtitleMode(next, { persist: false });
+        try {
+            await settingsManager.save({ transparent_subtitle_mode: next });
+        } catch (err) {
+            this._showToast(`Failed to save display mode: ${err}`, 'error');
+        }
+    }
+
+    _setTransparentSubtitleMode(enabled, { persist } = { persist: false }) {
+        this.transparentSubtitleMode = !!enabled;
+
+        const overlay = document.getElementById('overlay-view');
+        if (overlay) {
+            overlay.classList.toggle('transparent-subtitle-mode', this.transparentSubtitleMode);
+        }
+
+        const quickToggle = document.getElementById('btn-transparent-mode');
+        if (quickToggle) {
+            quickToggle.classList.toggle('active', this.transparentSubtitleMode);
+            quickToggle.title = this.transparentSubtitleMode
+                ? 'Transparent subtitle mode ON'
+                : 'Transparent subtitle mode OFF';
+        }
+
+        const settingCheckbox = document.getElementById('check-transparent-subtitle');
+        if (settingCheckbox && settingCheckbox.checked !== this.transparentSubtitleMode) {
+            settingCheckbox.checked = this.transparentSubtitleMode;
+        }
+
+        if (this.transcriptUI) {
+            this.transcriptUI.configure({
+                latestOnlyMode: this.transparentSubtitleMode,
+                fontColor: this.transparentSubtitleMode ? '#ffe66d' : undefined,
+            });
+        }
+
+        if (persist) {
+            settingsManager.save({ transparent_subtitle_mode: this.transparentSubtitleMode })
+                .catch((err) => this._showToast(`Failed to save display mode: ${err}`, 'error'));
+        }
+    }
+
+    _bindWindowFocusRecovery() {
+        this.appWindow.onFocusChanged(({ payload: focused }) => {
+            if (!focused) return;
+            const now = Date.now();
+            if (now - this.lastWindowFocusAt <= this.windowFocusTapThresholdMs) {
+                this._restoreNormalOverlayMode();
+            }
+            this.lastWindowFocusAt = now;
+        });
+    }
+
+    _restoreNormalOverlayMode() {
+        // Double-focus from taskbar returns to normal visual mode.
+        this._showView('overlay');
+        if (this.transparentSubtitleMode) {
+            this._setTransparentSubtitleMode(false, { persist: true });
+        }
+        if (this.isCompact) {
+            this._toggleCompact();
+        }
+    }
+
     _adjustFontSize(delta) {
         const current = this.transcriptUI.fontSize || 16;
         const newSize = Math.max(12, Math.min(140, current + delta));
@@ -1944,28 +2040,6 @@ class App {
         if (statusEl) statusEl.classList.add('has-update');
         if (statusText) statusText.textContent = `🆕 Update v${version} available`;
         if (actions) actions.style.display = '';
-
-        // 3. Show subtle hint on main screen
-        const existing = document.querySelector('.update-hint');
-        if (existing) existing.remove();
-        const hint = document.createElement('div');
-        hint.className = 'update-hint';
-        hint.textContent = `Update v${version} available — go to Settings → About`;
-        hint.addEventListener('click', () => {
-            this._showView('settings');
-            // Switch to About tab
-            document.querySelectorAll('.settings-tab').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.settings-tab-content').forEach(t => t.classList.remove('active'));
-            const aboutTab = document.querySelector('[data-tab="tab-about"]');
-            const aboutContent = document.getElementById('tab-about');
-            if (aboutTab) aboutTab.classList.add('active');
-            if (aboutContent) aboutContent.classList.add('active');
-            hint.remove();
-        });
-        document.body.appendChild(hint);
-
-        // Auto-hide hint after 8 seconds
-        setTimeout(() => { if (hint.parentNode) hint.remove(); }, 8000);
     }
 
     _initAboutTab() {

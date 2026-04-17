@@ -70,6 +70,8 @@ pub struct Settings {
     pub google_tts_voice: String,
     /// Google TTS speaking rate
     pub google_tts_speed: f64,
+    /// Minimal transparent subtitle appearance for screen sharing
+    pub transparent_subtitle_mode: bool,
 }
 
 impl Default for Settings {
@@ -99,6 +101,7 @@ impl Default for Settings {
             google_tts_api_key: String::new(),
             google_tts_voice: "vi-VN-Chirp3-HD-Aoede".to_string(),
             google_tts_speed: 1.0,
+            transparent_subtitle_mode: false,
         }
     }
 }

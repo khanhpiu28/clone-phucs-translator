@@ -93,6 +93,62 @@ body {
   overflow: hidden;
 }
 
+#overlay-view.transparent-subtitle-mode {
+  background: transparent !important;
+  border: none !important;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+#overlay-view.transparent-subtitle-mode #transcript-container,
+#overlay-view.transparent-subtitle-mode #transcript-content,
+#overlay-view.transparent-subtitle-mode .transcript-flow {
+  background: transparent !important;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+#overlay-view.transparent-subtitle-mode #drag-region,
+#overlay-view.transparent-subtitle-mode .floating-controls,
+#overlay-view.transparent-subtitle-mode #resize-handle {
+  opacity: 0;
+  pointer-events: none;
+}
+
+#overlay-view.transparent-subtitle-mode:hover #drag-region,
+#overlay-view.transparent-subtitle-mode:hover .floating-controls,
+#overlay-view.transparent-subtitle-mode:hover #resize-handle {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+#overlay-view.transparent-subtitle-mode .transcript-flow {
+  text-shadow: 0 3px 14px rgba(0, 0, 0, 0.9);
+}
+
+#overlay-view.transparent-subtitle-mode .seg-translated {
+  color: #ffe66d !important;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  font-size: 1.06em;
+}
+
+#overlay-view.transparent-subtitle-mode .seg-provisional {
+  color: rgba(255, 255, 255, 0.86);
+}
+
+#overlay-view.transparent-subtitle-mode .listening-indicator p {
+  display: none;
+}
+
+#overlay-view.transparent-subtitle-mode .seg-block.latest-only {
+  margin-top: 10px;
+  margin-bottom: 0;
+}
+
 /* ─── Drag Region / Control Bar ────────────────────────── */
 #drag-region {
   flex-shrink: 0;

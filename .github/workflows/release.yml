@@ -10,6 +10,7 @@ permissions:
 
 jobs:
   build-macos:
+    if: ${{ vars.ENABLE_MACOS_RELEASE == 'true' }}
     runs-on: macos-14  # Apple Silicon runner
     steps:
       - uses: actions/checkout@v4
@@ -73,6 +74,7 @@ jobs:
             src-tauri/target/release/bundle/dmg/*.dmg
 
   build-macos-intel:
+    if: ${{ vars.ENABLE_MACOS_RELEASE == 'true' }}
     runs-on: macos-14  # Cross-compile to Intel
     steps:
       - uses: actions/checkout@v4
@@ -181,7 +183,7 @@ jobs:
             src-tauri/target/release/bundle/msi/*.msi.sig
 
   release:
-    needs: [build-macos, build-macos-intel, build-windows]
+    needs: [build-windows]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

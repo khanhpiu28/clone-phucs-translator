@@ -1,6 +1,7 @@
 use crate::audio::microphone::MicCapture;
 use crate::audio::SystemAudioCapture;
 use serde::Serialize;
+use cpal::traits::{DeviceTrait, HostTrait};
 use std::sync::mpsc;
 use std::sync::Mutex;
 use tauri::{ipc::Channel, State};
@@ -28,6 +29,48 @@ impl AudioForwarder {
 pub struct PermissionStatus {
     pub screen_recording: String,
     pub microphone: String,
+}
+
+#[derive(Serialize, Clone)]
+pub struct AudioDebugInfo {
+    pub selected_source: String,
+    pub default_output_device: String,
+    pub default_input_device: String,
+    pub available_output_devices: Vec<String>,
+    pub available_input_devices: Vec<String>,
+}
+
+fn collect_audio_debug_info(source: &str) -> AudioDebugInfo {
+    let host = cpal::default_host();
+    let default_output_device = host
+        .default_output_device()
+        .and_then(|d| d.name().ok())
+        .unwrap_or_else(|| "Unknown output device".to_string());
+    let default_input_device = host
+        .default_input_device()
+        .and_then(|d| d.name().ok())
+        .unwrap_or_else(|| "Unknown input device".to_string());
+    let available_output_devices = host
+        .output_devices()
+        .map(|devs| devs.filter_map(|d| d.name().ok()).collect())
+        .unwrap_or_default();
+    let available_input_devices = host
+        .input_devices()
+        .map(|devs| devs.filter_map(|d| d.name().ok()).collect())
+        .unwrap_or_default();
+
+    AudioDebugInfo {
+        selected_source: source.to_string(),
+        default_output_device,
+        default_input_device,
+        available_output_devices,
+        available_input_devices,
+    }
+}
+
+#[tauri::command]
+pub fn get_audio_debug_info(source: Option<String>) -> Result<AudioDebugInfo, String> {
+    Ok(collect_audio_debug_info(source.as_deref().unwrap_or("unknown")))
 }
 
 /// Start audio capture and forward data to the frontend via IPC channel
