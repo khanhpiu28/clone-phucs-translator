@@ -7,6 +7,7 @@ const { invoke } = window.__TAURI__.core;
 // Default settings shape
 const DEFAULT_SETTINGS = {
   soniox_api_key: '',
+  google_stt_api_key: '',
   google_translate_api_key: '',
   deepl_api_key: '',
   source_language: 'auto',

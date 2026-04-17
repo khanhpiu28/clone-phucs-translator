@@ -203,14 +203,20 @@
         <div class="settings-section">
           <span class="field-label">Engine</span>
           <select id="select-translation-mode">
-            <option value="soniox">☁️ Soniox API (Cloud)</option>
-            <option value="soniox_google">☁️ Soniox + Google Translate API</option>
-            <option value="soniox_deepl">☁️ Soniox + DeepL API</option>
+            <option value="google_stt_google_translate">☁️ Google STT + Google Translate</option>
+            <option value="deepl_voice">☁️ DeepL Voice (STT + Translate)</option>
+            <option value="soniox">☁️ Soniox (STT + Translate)</option>
+            <option value="soniox_google">☁️ Soniox STT + Google Translate (chỉ Google)</option>
+            <option value="google_soniox">☁️ Google + Soniox (chỉ Google)</option>
+            <option value="soniox_deepl">☁️ Soniox STT + DeepL (chỉ DeepL)</option>
+            <option value="deepl_soniox">☁️ DeepL + Soniox (chỉ DeepL)</option>
             <option value="local">🖥️ Local MLX (Offline)</option>
           </select>
           <p class="hint" id="hint-mode-soniox">Real-time, 70+ languages, ~$0.12/hr</p>
-          <p class="hint" id="hint-mode-soniox-google" style="display:none">Soniox transcription + Google Cloud translation</p>
-          <p class="hint" id="hint-mode-soniox-deepl" style="display:none">Soniox transcription + DeepL translation</p>
+          <p class="hint" id="hint-mode-google-stt" style="display:none">Google Speech-to-Text + Google Translate</p>
+          <p class="hint" id="hint-mode-deepl-voice" style="display:none">DeepL Voice API (STT + Translate realtime)</p>
+          <p class="hint" id="hint-mode-soniox-google" style="display:none">Dùng Soniox để nhận giọng nói, dịch bằng Google Cloud</p>
+          <p class="hint" id="hint-mode-soniox-deepl" style="display:none">Dùng Soniox để nhận giọng nói, dịch bằng DeepL</p>
           <p class="hint" id="hint-mode-local" style="display:none">Offline, free, ~3-4s delay</p>
         </div>
 
@@ -225,6 +231,19 @@
             </button>
           </div>
           <p class="hint">Get key at <a href="#" id="link-soniox">console.soniox.com</a></p>
+        </div>
+
+        <div class="settings-section" id="section-google-stt-key" style="display:none;">
+          <span class="field-label">Google Speech-to-Text API Key <span class="required-badge">Required</span></span>
+          <div class="input-group">
+            <input type="password" id="input-google-stt-key" placeholder="AIzaSy..." autocomplete="off" />
+            <button id="btn-toggle-google-stt-key" class="icon-btn small" title="Show/Hide">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />
+              </svg>
+            </button>
+          </div>
+          <p class="hint">console.cloud.google.com → Enable Speech-to-Text API → Create API key</p>
         </div>
 
         <div class="settings-section" id="section-google-translate-key" style="display:none;">
