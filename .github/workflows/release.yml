@@ -47,14 +47,19 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Normalize updater signing key
+        run: |
+          echo "TAURI_SIGNING_PRIVATE_KEY<<EOF" >> "$GITHUB_ENV"
+          printf '%b\n' "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" >> "$GITHUB_ENV"
+          echo "EOF" >> "$GITHUB_ENV"
+
       - name: Build Tauri app (signed + notarized)
         env:
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: npm run tauri build
 
       - name: Upload macOS artifacts
@@ -107,14 +112,19 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Normalize updater signing key
+        run: |
+          echo "TAURI_SIGNING_PRIVATE_KEY<<EOF" >> "$GITHUB_ENV"
+          printf '%b\n' "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" >> "$GITHUB_ENV"
+          echo "EOF" >> "$GITHUB_ENV"
+
       - name: Build Tauri app (Intel, signed + notarized)
         env:
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: npm run tauri build -- --target x86_64-apple-darwin
 
       - name: Upload macOS Intel artifacts
@@ -147,10 +157,17 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Normalize updater signing key
+        shell: pwsh
+        run: |
+          $key = "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" -replace "\\n", "`n"
+          Add-Content -Path $env:GITHUB_ENV -Value "TAURI_SIGNING_PRIVATE_KEY<<EOF"
+          Add-Content -Path $env:GITHUB_ENV -Value $key
+          Add-Content -Path $env:GITHUB_ENV -Value "EOF"
+
       - name: Build Tauri app
         env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: npm run tauri build
 
       - name: Upload Windows artifacts
